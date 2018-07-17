@@ -15,13 +15,16 @@ import android.widget.Toast;
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
-import java.security.InvalidParameterException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
+import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -29,8 +32,10 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
 
 /**
  * Class which store the turtl-key for stay logged in. This class tries to avoid to throw any
@@ -57,8 +62,9 @@ public class SecurityStore {
     private static final String TURTL_CRYPTED_KEY = "TURTL_CRYPTED_KEY";
     private static final String TURTL_CRYPTED_IV = "TURTL_CRYPTED_IV";
 
-    private static final String CIPHER_MODE_PW= "AES/CTR/NoPadding";
     private static final String EXTRA_PASSWD = "EXTRA_PASSWD";
+    private static final String PW_GEN_ALGORITHM = "PBKDF2WithHmacSHA1";
+    private static final String CIPHER_MODE_PW = "AES/CBC/PKCS5Padding";
 
     private final String basePasswd;
 
@@ -85,7 +91,6 @@ public class SecurityStore {
 
 
     }
-
 
     public boolean storeKey(byte[] unencryptedKey, SecurityMode securityMode) {
         try {
@@ -118,7 +123,7 @@ public class SecurityStore {
             editor.apply();
             return true;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
-                BadPaddingException | IllegalBlockSizeException | NoSuchProviderException e) {
+                BadPaddingException | IllegalBlockSizeException | NoSuchProviderException |InvalidKeySpecException e) {
             Log.e(LOG_TAG_NAME,"Wrong encryption parameter", e);
         } catch (InvalidAlgorithmParameterException e) {
             if (SecurityMode.AUTHENTICATION.equals(securityMode) && !deviceIsProtected) {
@@ -127,6 +132,7 @@ public class SecurityStore {
                 Log.e(LOG_TAG_NAME, "Wrong encryption parameter", e);
             }
         }
+        preferences.edit().clear().apply();
         return false;
     }
 
@@ -146,7 +152,7 @@ public class SecurityStore {
     public byte[] loadKey() {
         final SecretKey secretKey = getSecretKey();
         if (preferences.contains(TURTL_CRYPTED_KEY) && secretKey != null) {
-            final byte[] cryptedKey = Base64.decode(preferences.getString(TURTL_CRYPTED_KEY, null), Base64.DEFAULT);
+            final byte[] storedKey = Base64.decode(preferences.getString(TURTL_CRYPTED_KEY, null), Base64.DEFAULT);
             final byte[] encryptionIv = Base64.decode(preferences.getString(TURTL_CRYPTED_IV, null), Base64.DEFAULT);
             final boolean passwd = preferences.getBoolean(EXTRA_PASSWD, false);
             final Cipher cipher;
@@ -154,14 +160,11 @@ public class SecurityStore {
                 cipher = Cipher.getInstance(CIPHER_MODE);
                 final GCMParameterSpec spec = new GCMParameterSpec(128, encryptionIv);
                 cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
-                final byte[] storedKey = cipher.doFinal(cryptedKey);
-                if (passwd) {
-                    return decrypt(storedKey);
-                }
-                return storedKey;
+                final byte[] clearKey = passwd ? decrypt(storedKey) : storedKey;
+                return cipher.doFinal(clearKey);
             } catch (NoSuchAlgorithmException | NoSuchPaddingException |
                     InvalidAlgorithmParameterException | InvalidKeyException |
-                    IllegalBlockSizeException | BadPaddingException e) {
+                    IllegalBlockSizeException | BadPaddingException|InvalidKeySpecException e) {
                 Log.e(LOG_TAG_NAME,"Wrong decryption parameter", e);
             }
         }
@@ -203,27 +206,53 @@ public class SecurityStore {
 
     // Methods
     private byte[] encrypt(byte[] clear) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
-        final byte[] raw = getPassword();
-        final SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
-        final Cipher cipher = Cipher.getInstance(CIPHER_MODE_PW);
-        cipher.init(Cipher.ENCRYPT_MODE, skeySpec);
-        return cipher.doFinal(clear);
+            InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeySpecException {
+        final SecureRandom random = new SecureRandom();
+        final byte[] salt = new byte[16];
+        random.nextBytes(salt);
+
+        SecretKey key = createSecretKey(salt);
+
+        final byte[] ivBytes = new byte[16];
+        random.nextBytes(ivBytes);
+        final IvParameterSpec iv = new IvParameterSpec(ivBytes);
+
+        final Cipher c = Cipher.getInstance(CIPHER_MODE_PW);
+        c.init(Cipher.ENCRYPT_MODE, key, iv);
+        final byte[] encValue = c.doFinal(clear);
+
+        final byte[] finalCiphertext = new byte[encValue.length+2*16];
+        System.arraycopy(ivBytes, 0, finalCiphertext, 0, 16);
+        System.arraycopy(salt, 0, finalCiphertext, 16, 16);
+        System.arraycopy(encValue, 0, finalCiphertext, 32, encValue.length);
+
+        return finalCiphertext;
     }
 
     private byte[] decrypt(byte[] encrypted) throws BadPaddingException, IllegalBlockSizeException,
-            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
-        final byte[] raw = getPassword();
-        final SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
-        final Cipher cipher = Cipher.getInstance(CIPHER_MODE_PW);
-        cipher.init(Cipher.DECRYPT_MODE, skeySpec);
-        return cipher.doFinal(encrypted);
+            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException {
+        final byte[] salt = Arrays.copyOfRange(encrypted, 16, 32);
+        SecretKey key = createSecretKey(salt);
+
+        final byte[] ivByte = Arrays.copyOfRange(encrypted, 0, 16);
+        final byte[] encValue = Arrays.copyOfRange(encrypted, 32, encrypted.length);
+
+        Cipher c = Cipher.getInstance(CIPHER_MODE_PW);
+        c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(ivByte));
+        return c.doFinal(encValue);
     }
 
-    private byte[] getPassword() {
+    private SecretKey createSecretKey(byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        final KeySpec spec = new PBEKeySpec(getPassword().toCharArray(), salt, 20, 128); // AES-128
+        final SecretKeyFactory f = SecretKeyFactory.getInstance(PW_GEN_ALGORITHM);
+        return f.generateSecret(spec);
+    }
+
+
+    private String getPassword() {
         // TODO build dialog to get password.
         String password = "";
-        return (password + basePasswd).getBytes();
+        return password + basePasswd;
     }
 
     public enum SecurityMode {

@@ -8,6 +8,12 @@ import android.support.v7.widget.Toolbar;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.RadioGroup;
+import android.widget.TextView;
+
+import com.lyonbros.turtlcore.SecurityStore;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -15,15 +21,52 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        final RadioGroup secureMethodGroup = findViewById(R.id.securityModeGroup);
+        if (secureMethodGroup.getCheckedRadioButtonId() == -1) {
+            findViewById(R.id.noneRBtn).setSelected(true);
+        }
+        handleInput();
+        handleOutput();
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
                         .setAction("Action", null).show();
+            }
+        });
+    }
+
+    private void handleOutput() {
+        final TextView output = findViewById(R.id.output);
+        final Button loadBtn = findViewById(R.id.loadBtn);
+        loadBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View button) {
+                final SecurityStore store = new SecurityStore(MainActivity.this);
+                final byte[] loadedText = store.loadKey();
+                if (loadedText == null) {
+                    output.setText("");
+                } else {
+                    output.setText(new String(loadedText));
+                }
+            }
+        });
+    }
+
+    private void handleInput() {
+        final RadioGroup secureMethodGroup = findViewById(R.id.securityModeGroup);
+        final EditText input = findViewById(R.id.inputText);
+        final Button saveBtn = findViewById(R.id.safeBtn);
+        saveBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View button) {
+                final SecurityStore store = new SecurityStore(MainActivity.this);
+                final Button radioButton = findViewById(secureMethodGroup.getCheckedRadioButtonId());
+                store.storeKey(input.getText().toString().getBytes(), radioButton.getText().toString());
             }
         });
     }

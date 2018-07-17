@@ -53,5 +53,12 @@ public class SecurityStoreTest {
         assertArrayEquals(bytes, testee.loadKey());
     }
 
+    @Test
+    public void storeAndLoadKeyPassword() {
+        byte[] bytes = new byte[42];
+        random.nextBytes(bytes);
+        assertTrue(testee.storeKey(bytes, "PASSWORD"));
+        assertArrayEquals(bytes, testee.loadKey());
+    }
 
 }
