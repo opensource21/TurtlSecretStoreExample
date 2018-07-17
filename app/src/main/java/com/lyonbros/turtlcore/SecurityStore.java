@@ -1,8 +1,10 @@
 package com.lyonbros.turtlcore;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.provider.Settings;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.support.annotation.NonNull;
@@ -26,6 +28,7 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Class which store the turtl-key for stay logged in. This class tries to avoid to throw any
@@ -51,6 +54,11 @@ public class SecurityStore {
     private static final String TURTL_CRYPTED_KEY = "TURTL_CRYPTED_KEY";
     private static final String TURTL_CRYPTED_IV = "TURTL_CRYPTED_IV";
 
+    private static final String CIPHER_MODE_PW= "AES/CTR/NoPadding";
+    private static final String EXTRA_PASSWD = "EXTRA_PASSWD";
+
+    private final String basePasswd;
+
     private final SharedPreferences preferences;
 
     /**
@@ -59,8 +67,12 @@ public class SecurityStore {
      *                <code>this.cordova.getActivity().getApplicationContext();</code> otherwise
      *                each Activity is a valid context.
      */
+    @SuppressLint("HardwareIds")
     public SecurityStore(Context context) {
         this.preferences= PreferenceManager.getDefaultSharedPreferences(context);
+        basePasswd = "TURTL" + Settings.Secure.getString(context.getContentResolver(),
+                Settings.Secure.ANDROID_ID);
+
     }
 
 
@@ -71,7 +83,13 @@ public class SecurityStore {
             final byte[] iv = cipher.getIV();
             final byte[] crypteKey = cipher.doFinal(unencryptedKey);
             final SharedPreferences.Editor editor = preferences.edit();
-            editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(crypteKey, Base64.DEFAULT));
+            final boolean extraPassword = SecurityMode.PASSWORD.equals(securityMode);
+            editor.putBoolean(EXTRA_PASSWD, extraPassword);
+            if (extraPassword) {
+                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(encrypt(crypteKey), Base64.DEFAULT));
+            } else {
+                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(crypteKey, Base64.DEFAULT));
+            }
             editor.putString(TURTL_CRYPTED_IV, Base64.encodeToString(iv, Base64.DEFAULT));
             editor.apply();
             return true;
@@ -101,12 +119,17 @@ public class SecurityStore {
         if (preferences.contains(TURTL_CRYPTED_KEY) && secretKey != null) {
             final byte[] cryptedKey = Base64.decode(preferences.getString(TURTL_CRYPTED_KEY, null), Base64.DEFAULT);
             final byte[] encryptionIv = Base64.decode(preferences.getString(TURTL_CRYPTED_IV, null), Base64.DEFAULT);
+            final boolean passwd = preferences.getBoolean(EXTRA_PASSWD, false);
             final Cipher cipher;
             try {
                 cipher = Cipher.getInstance(CIPHER_MODE);
                 final GCMParameterSpec spec = new GCMParameterSpec(128, encryptionIv);
                 cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
-                return cipher.doFinal(cryptedKey);
+                final byte[] storedKey = cipher.doFinal(cryptedKey);
+                if (passwd) {
+                    return decrypt(storedKey);
+                }
+                return storedKey;
             } catch (NoSuchAlgorithmException | NoSuchPaddingException |
                     InvalidAlgorithmParameterException | InvalidKeyException |
                     IllegalBlockSizeException | BadPaddingException e) {
@@ -147,6 +170,31 @@ public class SecurityStore {
             Log.e(LOG_TAG_NAME,"Can't load key from keystore.", e);
         }
         return null;
+    }
+
+    // Methods
+    private byte[] encrypt(byte[] clear) throws NoSuchPaddingException, NoSuchAlgorithmException,
+            InvalidKeyException, BadPaddingException, IllegalBlockSizeException {
+        final byte[] raw = getPassword();
+        final SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
+        final Cipher cipher = Cipher.getInstance(CIPHER_MODE_PW);
+        cipher.init(Cipher.ENCRYPT_MODE, skeySpec);
+        return cipher.doFinal(clear);
+    }
+
+    private byte[] decrypt(byte[] encrypted) throws BadPaddingException, IllegalBlockSizeException,
+            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+        final byte[] raw = getPassword();
+        final SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
+        final Cipher cipher = Cipher.getInstance(CIPHER_MODE_PW);
+        cipher.init(Cipher.DECRYPT_MODE, skeySpec);
+        return cipher.doFinal(encrypted);
+    }
+
+    private byte[] getPassword() {
+        // TODO build dialog to get password.
+        String password = "";
+        return (password + basePasswd).getBytes();
     }
 
     public enum SecurityMode {
