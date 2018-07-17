@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
-import android.provider.Settings;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.support.annotation.NonNull;
@@ -49,7 +48,8 @@ public class SecurityStore {
     private static final String LOG_TAG_NAME = "SecurityStore";
     private static final String CIPHER_MODE = "AES/GCM/NoPadding";
 
-    private static final String TURTL_KEYSTORE_NAME = "TurtlKeyStore";
+    // DONT CHANGE THE VALUE!
+    private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
     private static final String TURTL_KEYSTORE_KEY = "TurtlLoginSecret";
     private static final String TURTL_CRYPTED_KEY = "TURTL_CRYPTED_KEY";
     private static final String TURTL_CRYPTED_IV = "TURTL_CRYPTED_IV";
@@ -70,8 +70,9 @@ public class SecurityStore {
     @SuppressLint("HardwareIds")
     public SecurityStore(Context context) {
         this.preferences= PreferenceManager.getDefaultSharedPreferences(context);
-        basePasswd = "TURTL" + Settings.Secure.getString(context.getContentResolver(),
-                Settings.Secure.ANDROID_ID);
+        // FIX-Passwords are unsecure, but it's more like a fix salt. The user can prefix a good password.
+        basePasswd = "TURTLlkajshfddsahfkdsajhf" ;
+
 
     }
 
@@ -144,7 +145,7 @@ public class SecurityStore {
             NoSuchProviderException, InvalidAlgorithmParameterException {
 
         final KeyGenerator keyGenerator = KeyGenerator
-                .getInstance(KeyProperties.KEY_ALGORITHM_AES, TURTL_KEYSTORE_NAME);
+                .getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE);
 
         keyGenerator.init(new KeyGenParameterSpec.Builder(TURTL_KEYSTORE_KEY,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
@@ -157,7 +158,7 @@ public class SecurityStore {
 
     private SecretKey getSecretKey()  {
         try {
-            final KeyStore keyStore = KeyStore.getInstance(TURTL_KEYSTORE_NAME);
+            final KeyStore keyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
             keyStore.load(null);
             return ((KeyStore.SecretKeyEntry) keyStore.getEntry(TURTL_KEYSTORE_KEY, null)).getSecretKey();
         } catch (KeyStoreException e) {
