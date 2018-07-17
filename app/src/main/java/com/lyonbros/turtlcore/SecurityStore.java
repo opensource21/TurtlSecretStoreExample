@@ -1,6 +1,7 @@
 package com.lyonbros.turtlcore;
 
 import android.annotation.SuppressLint;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
@@ -9,10 +10,12 @@ import android.security.keystore.KeyProperties;
 import android.support.annotation.NonNull;
 import android.util.Base64;
 import android.util.Log;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -59,7 +62,11 @@ public class SecurityStore {
 
     private final String basePasswd;
 
+    // Exsits PIN, Pattern or Fingerprint or something else.
+    private final boolean deviceIsProtected;
+
     private final SharedPreferences preferences;
+    private final Context context;
 
     /**
      * Initialize this object.
@@ -69,6 +76,9 @@ public class SecurityStore {
      */
     @SuppressLint("HardwareIds")
     public SecurityStore(Context context) {
+        this.context = context;
+        final KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE); //api 23+
+        deviceIsProtected = keyguardManager.isDeviceSecure();
         this.preferences= PreferenceManager.getDefaultSharedPreferences(context);
         // FIX-Passwords are unsecure, but it's more like a fix salt. The user can prefix a good password.
         basePasswd = "TURTLlkajshfddsahfkdsajhf" ;
@@ -79,12 +89,25 @@ public class SecurityStore {
 
     public boolean storeKey(byte[] unencryptedKey, SecurityMode securityMode) {
         try {
+            final SecurityMode usedSecurityMode;
+            if (SecurityMode.AUTHENTICATION.equals(securityMode) && !deviceIsProtected) {
+                final String warningText = "Downgrade security mode to none, " +
+                        "because there is no screenprotection set!" +
+                        "Secure lock screen isn't set up.\n" +
+                        "Go to 'Settings -> Security -> Screen lock' to set up a lock screen";
+                Toast.makeText(context, warningText,
+                        Toast.LENGTH_LONG).show();
+                Log.w(LOG_TAG_NAME, warningText);
+                usedSecurityMode = SecurityMode.NONE;
+            } else {
+                usedSecurityMode = securityMode;
+            }
             final Cipher cipher = Cipher.getInstance(CIPHER_MODE);
-            cipher.init(Cipher.ENCRYPT_MODE, createSecretKey(securityMode));
+            cipher.init(Cipher.ENCRYPT_MODE, createSecretKey(usedSecurityMode));
             final byte[] iv = cipher.getIV();
             final byte[] crypteKey = cipher.doFinal(unencryptedKey);
             final SharedPreferences.Editor editor = preferences.edit();
-            final boolean extraPassword = SecurityMode.PASSWORD.equals(securityMode);
+            final boolean extraPassword = SecurityMode.PASSWORD.equals(usedSecurityMode);
             editor.putBoolean(EXTRA_PASSWD, extraPassword);
             if (extraPassword) {
                 editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(encrypt(crypteKey), Base64.DEFAULT));
@@ -95,9 +118,14 @@ public class SecurityStore {
             editor.apply();
             return true;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
-                BadPaddingException | InvalidAlgorithmParameterException |
-                IllegalBlockSizeException | NoSuchProviderException e) {
+                BadPaddingException | IllegalBlockSizeException | NoSuchProviderException e) {
             Log.e(LOG_TAG_NAME,"Wrong encryption parameter", e);
+        } catch (InvalidAlgorithmParameterException e) {
+            if (SecurityMode.AUTHENTICATION.equals(securityMode) && !deviceIsProtected) {
+                Log.e(LOG_TAG_NAME, "The device must be proteced by pin or pattern or fingerprint.", e);
+            } else {
+                Log.e(LOG_TAG_NAME, "Wrong encryption parameter", e);
+            }
         }
         return false;
     }
