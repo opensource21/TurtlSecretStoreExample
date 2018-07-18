@@ -19,12 +19,9 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
-import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -32,10 +29,7 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.KeyGenerator;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
 
 /**
  * Class which store the turtl-key for stay logged in. This class tries to avoid to throw any
@@ -63,16 +57,16 @@ public class SecurityStore {
     private static final String TURTL_CRYPTED_IV = "TURTL_CRYPTED_IV";
 
     private static final String EXTRA_PASSWD = "EXTRA_PASSWD";
-    private static final String PW_GEN_ALGORITHM = "PBKDF2WithHmacSHA1";
-    private static final String CIPHER_MODE_PW = "AES/CBC/PKCS5Padding";
 
-    private final String basePasswd;
-
-    // Exsits PIN, Pattern or Fingerprint or something else.
+    // Exists PIN, Pattern or Fingerprint or something else.
     private final boolean deviceIsProtected;
+
+    private final BasePasswordEncryptionHelper pwEncHelper;
 
     private final SharedPreferences preferences;
     private final Context context;
+
+
 
     /**
      * Initialize this object.
@@ -86,10 +80,8 @@ public class SecurityStore {
         final KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE); //api 23+
         deviceIsProtected = keyguardManager.isDeviceSecure();
         this.preferences= PreferenceManager.getDefaultSharedPreferences(context);
-        // FIX-Passwords are unsecure, but it's more like a fix salt. The user can prefix a good password.
-        basePasswd = "TURTLlkajshfddsahfkdsajhf" ;
 
-
+        pwEncHelper = new FixPasswordEncryptionHelper("TODO CHANGE ME");
     }
 
     public boolean storeKey(byte[] unencryptedKey, SecurityMode securityMode) {
@@ -115,7 +107,7 @@ public class SecurityStore {
             final boolean extraPassword = SecurityMode.PASSWORD.equals(usedSecurityMode);
             editor.putBoolean(EXTRA_PASSWD, extraPassword);
             if (extraPassword) {
-                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(encrypt(crypteKey), Base64.DEFAULT));
+                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(pwEncHelper.encrypt(crypteKey), Base64.DEFAULT));
             } else {
                 editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(crypteKey, Base64.DEFAULT));
             }
@@ -160,7 +152,7 @@ public class SecurityStore {
                 cipher = Cipher.getInstance(CIPHER_MODE);
                 final GCMParameterSpec spec = new GCMParameterSpec(128, encryptionIv);
                 cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
-                final byte[] clearKey = passwd ? decrypt(storedKey) : storedKey;
+                final byte[] clearKey = passwd ? pwEncHelper.decrypt(storedKey) : storedKey;
                 return cipher.doFinal(clearKey);
             } catch (NoSuchAlgorithmException | NoSuchPaddingException |
                     InvalidAlgorithmParameterException | InvalidKeyException |
@@ -204,56 +196,6 @@ public class SecurityStore {
         return null;
     }
 
-    // Methods
-    private byte[] encrypt(byte[] clear) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeySpecException {
-        final SecureRandom random = new SecureRandom();
-        final byte[] salt = new byte[16];
-        random.nextBytes(salt);
-
-        SecretKey key = createSecretKey(salt);
-
-        final byte[] ivBytes = new byte[16];
-        random.nextBytes(ivBytes);
-        final IvParameterSpec iv = new IvParameterSpec(ivBytes);
-
-        final Cipher c = Cipher.getInstance(CIPHER_MODE_PW);
-        c.init(Cipher.ENCRYPT_MODE, key, iv);
-        final byte[] encValue = c.doFinal(clear);
-
-        final byte[] finalCiphertext = new byte[encValue.length+2*16];
-        System.arraycopy(ivBytes, 0, finalCiphertext, 0, 16);
-        System.arraycopy(salt, 0, finalCiphertext, 16, 16);
-        System.arraycopy(encValue, 0, finalCiphertext, 32, encValue.length);
-
-        return finalCiphertext;
-    }
-
-    private byte[] decrypt(byte[] encrypted) throws BadPaddingException, IllegalBlockSizeException,
-            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException {
-        final byte[] salt = Arrays.copyOfRange(encrypted, 16, 32);
-        SecretKey key = createSecretKey(salt);
-
-        final byte[] ivByte = Arrays.copyOfRange(encrypted, 0, 16);
-        final byte[] encValue = Arrays.copyOfRange(encrypted, 32, encrypted.length);
-
-        Cipher c = Cipher.getInstance(CIPHER_MODE_PW);
-        c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(ivByte));
-        return c.doFinal(encValue);
-    }
-
-    private SecretKey createSecretKey(byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
-        final KeySpec spec = new PBEKeySpec(getPassword().toCharArray(), salt, 20, 128); // AES-128
-        final SecretKeyFactory f = SecretKeyFactory.getInstance(PW_GEN_ALGORITHM);
-        return f.generateSecret(spec);
-    }
-
-
-    private String getPassword() {
-        // TODO build dialog to get password.
-        String password = "";
-        return password + basePasswd;
-    }
 
     public enum SecurityMode {
         NONE,
