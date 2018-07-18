@@ -52,11 +52,9 @@ public class SecurityStore {
 
     // DONT CHANGE THE VALUE!
     private static final String ANDROID_KEY_STORE = "AndroidKeyStore";
-    private static final String TURTL_KEYSTORE_KEY = "TurtlLoginSecret";
-    private static final String TURTL_CRYPTED_KEY = "TURTL_CRYPTED_KEY";
-    private static final String TURTL_CRYPTED_IV = "TURTL_CRYPTED_IV";
-
-    private static final String EXTRA_PASSWD = "EXTRA_PASSWD";
+    private static final String KEY_SUFFIX_PASSWORD = ".passwd";
+    private static final String KEY_SUFFIX_IV = ".iv";
+    private static final String KEY_SUFFIX_KEY = ".key";
 
     // Exists PIN, Pattern or Fingerprint or something else.
     private final boolean deviceIsProtected;
@@ -84,7 +82,7 @@ public class SecurityStore {
         this.pwEncHelper = pwEncHelper;
     }
 
-    public boolean storeKey(byte[] unencryptedKey, SecurityMode securityMode) {
+    public boolean storeKey(byte[] unencryptedKey, String keyname, SecurityMode securityMode) {
         try {
             final SecurityMode usedSecurityMode;
             if (SecurityMode.AUTHENTICATION.equals(securityMode) && !deviceIsProtected) {
@@ -100,18 +98,18 @@ public class SecurityStore {
                 usedSecurityMode = securityMode;
             }
             final Cipher cipher = Cipher.getInstance(CIPHER_MODE);
-            cipher.init(Cipher.ENCRYPT_MODE, createSecretKey(usedSecurityMode));
+            cipher.init(Cipher.ENCRYPT_MODE, createSecretKey(keyname, usedSecurityMode));
             final byte[] iv = cipher.getIV();
             final byte[] crypteKey = cipher.doFinal(unencryptedKey);
             final SharedPreferences.Editor editor = preferences.edit();
             final boolean extraPassword = SecurityMode.PASSWORD.equals(usedSecurityMode);
-            editor.putBoolean(EXTRA_PASSWD, extraPassword);
+            editor.putBoolean(keyname + KEY_SUFFIX_PASSWORD, extraPassword);
             if (extraPassword) {
-                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(pwEncHelper.encrypt(crypteKey), Base64.DEFAULT));
+                editor.putString(keyname + KEY_SUFFIX_KEY, Base64.encodeToString(pwEncHelper.encrypt(crypteKey), Base64.DEFAULT));
             } else {
-                editor.putString(TURTL_CRYPTED_KEY, Base64.encodeToString(crypteKey, Base64.DEFAULT));
+                editor.putString(keyname + KEY_SUFFIX_KEY, Base64.encodeToString(crypteKey, Base64.DEFAULT));
             }
-            editor.putString(TURTL_CRYPTED_IV, Base64.encodeToString(iv, Base64.DEFAULT));
+            editor.putString(keyname + KEY_SUFFIX_IV, Base64.encodeToString(iv, Base64.DEFAULT));
             editor.apply();
             return true;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException |
@@ -131,24 +129,34 @@ public class SecurityStore {
     }
 
     public boolean storeKey(byte[] unencryptedKey) {
-        return storeKey(unencryptedKey, SecurityMode.NONE);
+        return storeKey(unencryptedKey, "TurtlLoginSecret", SecurityMode.NONE);
     }
 
-    public boolean storeKey(byte[] unencryptedKey, String securityMode) {
-        return storeKey(unencryptedKey, SecurityMode.valueOf(securityMode));
+    public boolean storeKey(byte[] unencryptedKey, String keyname, String securityMode) {
+        return storeKey(unencryptedKey, keyname, SecurityMode.valueOf(securityMode));
     }
 
+    /**
+     * Loads a saved key (under Keyword TurtlLoginSecret) or <code>null</code> if no key is found.
+     *
+     * @return the saved key or <code>null</code> if no key is found.
+     */
+
+    public byte[] loadKey() {
+        return loadKey("TurtlLoginSecret");
+    }
 
     /**
      * Loads a saved key or <code>null</code> if no key is found.
+     * @param keyname name under which the key is saved.
      * @return the saved key or <code>null</code> if no key is found.
      */
-    public byte[] loadKey() {
-        final SecretKey secretKey = getSecretKey();
-        if (preferences.contains(TURTL_CRYPTED_KEY) && secretKey != null) {
-            final byte[] storedKey = Base64.decode(preferences.getString(TURTL_CRYPTED_KEY, null), Base64.DEFAULT);
-            final byte[] encryptionIv = Base64.decode(preferences.getString(TURTL_CRYPTED_IV, null), Base64.DEFAULT);
-            final boolean passwd = preferences.getBoolean(EXTRA_PASSWD, false);
+    public byte[] loadKey(String keyname) {
+        final SecretKey secretKey = getSecretKey(keyname);
+        if (preferences.contains(keyname+ KEY_SUFFIX_KEY) && secretKey != null) {
+            final byte[] storedKey = Base64.decode(preferences.getString(keyname + KEY_SUFFIX_KEY, null), Base64.DEFAULT);
+            final byte[] encryptionIv = Base64.decode(preferences.getString(keyname + KEY_SUFFIX_IV, null), Base64.DEFAULT);
+            final boolean passwd = preferences.getBoolean(keyname+ KEY_SUFFIX_PASSWORD, false);
             final Cipher cipher;
             try {
                 cipher = Cipher.getInstance(CIPHER_MODE);
@@ -168,13 +176,13 @@ public class SecurityStore {
     }
 
     @NonNull
-    private SecretKey createSecretKey(SecurityMode securityMode) throws NoSuchAlgorithmException,
+    private SecretKey createSecretKey(String keyname, SecurityMode securityMode) throws NoSuchAlgorithmException,
             NoSuchProviderException, InvalidAlgorithmParameterException {
 
         final KeyGenerator keyGenerator = KeyGenerator
                 .getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE);
 
-        keyGenerator.init(new KeyGenParameterSpec.Builder(TURTL_KEYSTORE_KEY,
+        keyGenerator.init(new KeyGenParameterSpec.Builder(keyname,
                 KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -184,11 +192,11 @@ public class SecurityStore {
         return keyGenerator.generateKey();
     }
 
-    private SecretKey getSecretKey()  {
+    private SecretKey getSecretKey(String keyname)  {
         try {
             final KeyStore keyStore = KeyStore.getInstance(ANDROID_KEY_STORE);
             keyStore.load(null);
-            return ((KeyStore.SecretKeyEntry) keyStore.getEntry(TURTL_KEYSTORE_KEY, null)).getSecretKey();
+            return ((KeyStore.SecretKeyEntry) keyStore.getEntry(keyname, null)).getSecretKey();
         } catch (KeyStoreException e) {
             Log.e(LOG_TAG_NAME,"No keystore-provider is founded or can't load key from keystore.", e);
         } catch (CertificateException | IOException e) {

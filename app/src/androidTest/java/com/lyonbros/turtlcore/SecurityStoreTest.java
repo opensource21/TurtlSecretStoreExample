@@ -19,6 +19,7 @@ import static org.junit.Assert.*;
 public class SecurityStoreTest {
 
     private static final Random random = new SecureRandom();
+    private static final String TURTL_KEY = "TURTL_KEY";
 
     private SecurityStore testee;
 
@@ -30,15 +31,15 @@ public class SecurityStoreTest {
 
     @Before
     public void setup() {
-        testee = new SecurityStore(InstrumentationRegistry.getContext());
+        testee = new SecurityStore(InstrumentationRegistry.getContext(), new FixPasswordEncryptionHelper("TODO"));
     }
 
     @Test
     public void storeAndLoadKeyNone() {
         byte[] bytes = new byte[42];
         random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, "NONE"));
-        assertArrayEquals(bytes, testee.loadKey());
+        assertTrue(testee.storeKey(bytes, TURTL_KEY, "NONE"));
+        assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
     }
 
     @Test
@@ -49,16 +50,16 @@ public class SecurityStoreTest {
     public void storeAndLoadKeyAuthentication() {
         byte[] bytes = new byte[42];
         random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, "AUTHENTICATION"));
-        assertArrayEquals(bytes, testee.loadKey());
+        assertTrue(testee.storeKey(bytes, TURTL_KEY, "AUTHENTICATION"));
+        assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
     }
 
     @Test
     public void storeAndLoadKeyPassword() {
         byte[] bytes = new byte[42];
         random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, "PASSWORD"));
-        assertArrayEquals(bytes, testee.loadKey());
+        assertTrue(testee.storeKey(bytes, TURTL_KEY, "PASSWORD"));
+        assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
     }
 
 }

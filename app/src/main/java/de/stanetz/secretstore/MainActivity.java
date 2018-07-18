@@ -70,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
                 final SecurityStore store = new SecurityStore(MainActivity.this,
                         new FixPasswordEncryptionHelper("TODO"));
                 final Button radioButton = findViewById(secureMethodGroup.getCheckedRadioButtonId());
-                store.storeKey(input.getText().toString().getBytes(), radioButton.getText().toString());
+                store.storeKey(input.getText().toString().getBytes(), "turtlKey", radioButton.getText().toString());
             }
         });
     }

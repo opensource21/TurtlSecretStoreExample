@@ -24,7 +24,12 @@ public class BasePasswordEncryptionHelperTest {
 
     @Test
     public void enAndDecrypt_Null() throws Exception {
-        testWithPassword(null);
+        try {
+            testWithPassword(null);
+            fail("MissingPasswordException should be thrown.");
+        } catch (BasePasswordEncryptionHelper.MissingPasswordException e) {
+            // Expected
+        }
     }
 
     @Test
@@ -37,7 +42,7 @@ public class BasePasswordEncryptionHelperTest {
         testWithPassword("1234567890öäß!\"§$%&/()=?<>|yxcvbnm,.;:@€µ");
     }
 
-    private void testWithPassword(final String password) throws BadPaddingException, IllegalBlockSizeException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException {
+    private void testWithPassword(final String password) throws BadPaddingException, IllegalBlockSizeException, NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException, BasePasswordEncryptionHelper.MissingPasswordException {
         final BasePasswordEncryptionHelper testee = new BasePasswordEncryptionHelper() {
             @Override
             String getPassword() {
