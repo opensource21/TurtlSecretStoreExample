@@ -1,10 +1,10 @@
 package com.lyonbros.turtlcore;
 
-class FixPasswordEncryptionHelper extends BasePasswordEncryptionHelper {
+public class FixPasswordEncryptionHelper extends BasePasswordEncryptionHelper {
 
     private final String fixPassword;
 
-    FixPasswordEncryptionHelper(String fixPassword) {
+    public FixPasswordEncryptionHelper(String fixPassword) {
         this.fixPassword = fixPassword;
     }
 

@@ -27,7 +27,7 @@ abstract class BasePasswordEncryptionHelper {
 
     // Methods
     final byte[] encrypt(byte[] clear) throws NoSuchPaddingException, NoSuchAlgorithmException,
-            InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeySpecException {
+            InvalidKeyException, BadPaddingException, IllegalBlockSizeException, InvalidAlgorithmParameterException, InvalidKeySpecException, MissingPasswordException {
         final SecureRandom random = new SecureRandom();
         final byte[] salt = new byte[16];
         random.nextBytes(salt);
@@ -51,7 +51,7 @@ abstract class BasePasswordEncryptionHelper {
     }
 
     final byte[] decrypt(byte[] encrypted) throws BadPaddingException, IllegalBlockSizeException,
-            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException {
+            NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException, InvalidKeySpecException, MissingPasswordException {
         final byte[] salt = Arrays.copyOfRange(encrypted, 16, 32);
         SecretKey key = createSecretKey(salt);
 
@@ -63,16 +63,18 @@ abstract class BasePasswordEncryptionHelper {
         return c.doFinal(encValue);
     }
 
-    private SecretKey createSecretKey(byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    private SecretKey createSecretKey(byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException, MissingPasswordException {
         final KeySpec spec = new PBEKeySpec(buildPassword().toCharArray(), salt, 20, 128); // AES-128
         final SecretKeyFactory f = SecretKeyFactory.getInstance(PW_GEN_ALGORITHM);
         return f.generateSecret(spec);
     }
 
 
-    private String buildPassword() {
-        // TODO build dialog to get password.
-        String password = "";
+    private String buildPassword() throws MissingPasswordException {
+        final String password = getPassword();
+        if (password == null) {
+            throw new MissingPasswordException();
+        }
         // FIX-Passwords are unsecure, but it's more like a fix salt. The user can prefix a good password.
         return password + "TURTLlkajshfddsahfkdsajhf";
     }
@@ -82,4 +84,8 @@ abstract class BasePasswordEncryptionHelper {
      */
     abstract String getPassword();
 
+    static class MissingPasswordException extends Exception {
+        private MissingPasswordException() {
+        }
+    }
 }

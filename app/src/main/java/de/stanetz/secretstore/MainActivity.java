@@ -13,6 +13,7 @@ import android.widget.EditText;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import com.lyonbros.turtlcore.FixPasswordEncryptionHelper;
 import com.lyonbros.turtlcore.SecurityStore;
 
 public class MainActivity extends AppCompatActivity {
@@ -46,7 +47,8 @@ public class MainActivity extends AppCompatActivity {
         loadBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View button) {
-                final SecurityStore store = new SecurityStore(MainActivity.this);
+                final SecurityStore store = new SecurityStore(MainActivity.this,
+                        new FixPasswordEncryptionHelper("TODO"));
                 final byte[] loadedText = store.loadKey();
                 if (loadedText == null) {
                     output.setText("");
@@ -55,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
     }
 
     private void handleInput() {
@@ -64,7 +67,8 @@ public class MainActivity extends AppCompatActivity {
         saveBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View button) {
-                final SecurityStore store = new SecurityStore(MainActivity.this);
+                final SecurityStore store = new SecurityStore(MainActivity.this,
+                        new FixPasswordEncryptionHelper("TODO"));
                 final Button radioButton = findViewById(secureMethodGroup.getCheckedRadioButtonId());
                 store.storeKey(input.getText().toString().getBytes(), radioButton.getText().toString());
             }

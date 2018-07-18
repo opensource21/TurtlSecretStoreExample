@@ -75,13 +75,13 @@ public class SecurityStore {
      *                each Activity is a valid context.
      */
     @SuppressLint("HardwareIds")
-    public SecurityStore(Context context) {
+    public SecurityStore(Context context, BasePasswordEncryptionHelper pwEncHelper) {
         this.context = context;
         final KeyguardManager keyguardManager = (KeyguardManager) context.getSystemService(Context.KEYGUARD_SERVICE); //api 23+
         deviceIsProtected = keyguardManager.isDeviceSecure();
         this.preferences= PreferenceManager.getDefaultSharedPreferences(context);
 
-        pwEncHelper = new FixPasswordEncryptionHelper("TODO CHANGE ME");
+        this.pwEncHelper = pwEncHelper;
     }
 
     public boolean storeKey(byte[] unencryptedKey, SecurityMode securityMode) {
@@ -123,6 +123,8 @@ public class SecurityStore {
             } else {
                 Log.e(LOG_TAG_NAME, "Wrong encryption parameter", e);
             }
+        } catch (BasePasswordEncryptionHelper.MissingPasswordException e) {
+            Log.w(LOG_TAG_NAME,"No password was entered");
         }
         preferences.edit().clear().apply();
         return false;
@@ -158,6 +160,8 @@ public class SecurityStore {
                     InvalidAlgorithmParameterException | InvalidKeyException |
                     IllegalBlockSizeException | BadPaddingException|InvalidKeySpecException e) {
                 Log.e(LOG_TAG_NAME,"Wrong decryption parameter", e);
+            } catch (BasePasswordEncryptionHelper.MissingPasswordException e) {
+                Log.w(LOG_TAG_NAME,"No password was entered");
             }
         }
         return null;
