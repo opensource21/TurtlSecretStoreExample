@@ -175,6 +175,7 @@ public class SecurityStore {
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .setUserAuthenticationRequired(SecurityMode.AUTHENTICATION.equals(securityMode))
+                .setUserAuthenticationValidityDurationSeconds(300)
                 .build());
         return keyGenerator.generateKey();
     }
@@ -211,6 +212,13 @@ public class SecurityStore {
          * These keys become permanently invalidated once the secure lock screen is disabled
          * (reconfigured to None, Swipe or other mode which does not authenticate the user)
          * or forcibly reset (e.g. by a Device Administrator).
+         *
+         * The time is set to 5 minutes.
+         *
+         * See https://stackoverflow.com/questions/36043912/error-after-fingerprint-touched-on-samsung-phones-android-security-keystoreexce
+         * seems not a good option, because it ends in difficult error-reports.
+         * See https://github.com/googlesamples/android-ConfirmCredential/blob/master/Application/src/main/java/com/example/android/confirmcredential/MainActivity.java
+         * for an example implementation how to do it right.
          */
         AUTHENTICATION,
         /** Ask for a secific password at safe and  unsafe.Not supported at the moment.*/
