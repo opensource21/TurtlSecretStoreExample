@@ -6,14 +6,14 @@ import android.support.test.runner.AndroidJUnit4;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.security.SecureRandom;
 import java.util.Random;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(AndroidJUnit4.class)
 public class SecurityStoreTest {
@@ -31,35 +31,22 @@ public class SecurityStoreTest {
 
     @Before
     public void setup() {
-        testee = new SecurityStore(InstrumentationRegistry.getContext(), new FixPasswordEncryptionHelper("TODO"));
+        testee = new SecurityStore(InstrumentationRegistry.getContext());
     }
 
     @Test
-    public void storeAndLoadKeyNone() {
+    public void storeAndLoadKey_CusttomKey() {
         byte[] bytes = new byte[42];
         random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, TURTL_KEY, "NONE"));
+        assertTrue(testee.storeKey(bytes, TURTL_KEY));
         assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
     }
 
     @Test
-    @Ignore // Can't authenticate user in test.
-    // see https://github.com/googlesamples/android-ConfirmCredential/blob/master/Application/src/main/java/com/example/android/confirmcredential/MainActivity.java
-    // and https://blog.xamarin.com/easily-authenticate-users-with-androids-confirm-credential/
-    // This must be done in the program :-(
-    public void storeAndLoadKeyAuthentication() {
+    public void storeAndLoadKey() {
         byte[] bytes = new byte[42];
         random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, TURTL_KEY, "AUTHENTICATION"));
-        assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
+        assertTrue(testee.storeKey(bytes));
+        assertArrayEquals(bytes, testee.loadKey());
     }
-
-    @Test
-    public void storeAndLoadKeyPassword() {
-        byte[] bytes = new byte[42];
-        random.nextBytes(bytes);
-        assertTrue(testee.storeKey(bytes, TURTL_KEY, "PASSWORD"));
-        assertArrayEquals(bytes, testee.loadKey(TURTL_KEY));
-    }
-
 }

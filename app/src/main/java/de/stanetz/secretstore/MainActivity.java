@@ -14,7 +14,6 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
-import com.lyonbros.turtlcore.FixPasswordEncryptionHelper;
 import com.lyonbros.turtlcore.SecurityStore;
 
 public class MainActivity extends AppCompatActivity {
@@ -29,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
         if (secureMethodGroup.getCheckedRadioButtonId() == -1) {
             ((RadioButton) findViewById(R.id.noneRBtn)).setChecked(true);
         }
+        secureMethodGroup.setVisibility(View.GONE);
         handleInput();
         handleOutput();
 
@@ -48,8 +48,7 @@ public class MainActivity extends AppCompatActivity {
         loadBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View button) {
-                final SecurityStore store = new SecurityStore(MainActivity.this,
-                        new FixPasswordEncryptionHelper("TODO"));
+                final SecurityStore store = new SecurityStore(MainActivity.this);
                 final byte[] loadedText = store.loadKey();
                 if (loadedText == null) {
                     output.setText("");
@@ -68,10 +67,9 @@ public class MainActivity extends AppCompatActivity {
         saveBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View button) {
-                final SecurityStore store = new SecurityStore(MainActivity.this,
-                        new FixPasswordEncryptionHelper("TODO"));
+                final SecurityStore store = new SecurityStore(MainActivity.this);
                 final Button radioButton = findViewById(secureMethodGroup.getCheckedRadioButtonId());
-                store.storeKey(input.getText().toString().getBytes(), "turtlKey", radioButton.getText().toString());
+                store.storeKey(input.getText().toString().getBytes());
             }
         });
     }
