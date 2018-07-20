@@ -10,6 +10,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
@@ -26,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         final RadioGroup secureMethodGroup = findViewById(R.id.securityModeGroup);
         if (secureMethodGroup.getCheckedRadioButtonId() == -1) {
-            findViewById(R.id.noneRBtn).setSelected(true);
+            ((RadioButton) findViewById(R.id.noneRBtn)).setChecked(true);
         }
         handleInput();
         handleOutput();
