@@ -1,4 +1,4 @@
-package com.lyonbros.turtlcore;
+package com.lyonbros.turtlstore;
 
 import android.annotation.SuppressLint;
 import android.content.Context;

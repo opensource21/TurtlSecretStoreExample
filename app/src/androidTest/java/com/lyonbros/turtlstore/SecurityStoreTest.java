@@ -1,4 +1,4 @@
-package com.lyonbros.turtlcore;
+package com.lyonbros.turtlstore;
 
 import android.os.Looper;
 import android.support.test.InstrumentationRegistry;

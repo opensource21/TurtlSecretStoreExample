@@ -14,7 +14,7 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
-import com.lyonbros.turtlcore.SecurityStore;
+import com.lyonbros.turtlstore.SecurityStore;
 
 public class MainActivity extends AppCompatActivity {
 
